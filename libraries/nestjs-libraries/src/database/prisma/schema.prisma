@@ -1,0 +1,257 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id           String             @id @default(uuid())
+  name         String
+  description  String?
+  users        UserOrganization[]
+  media        Media[]
+  paymentId    String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  github       GitHub[]
+  subscription Subscription?
+  Integration  Integration[]
+  post         Post[]
+  Comments     Comments[]
+  notifications Notifications[]
+}
+
+model User {
+  id            String             @id @default(uuid())
+  email         String
+  password      String?
+  providerName  Provider
+  providerId    String?
+  organizations UserOrganization[]
+  timezone      Int
+  comments      Comments[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  lastReadNotifications DateTime   @default(now())
+  inviteId      String?
+
+  @@unique([email, providerName])
+  @@index([lastReadNotifications])
+  @@index([inviteId])
+}
+
+model UserOrganization {
+  id             String       @id @default(uuid())
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  disabled       Boolean      @default(false)
+  role           Role         @default(USER)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, organizationId])
+}
+
+model GitHub {
+  id             String       @id @default(uuid())
+  login          String?
+  name           String?
+  token          String
+  jobId          String?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([login])
+  @@index([organizationId])
+}
+
+model Trending {
+  id           String   @id @default(uuid())
+  trendingList String
+  language     String?
+  hash         String
+  date         DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([language])
+  @@index([hash])
+}
+
+model TrendingLog {
+  id           String   @id @default(uuid())
+  language     String?
+  date         DateTime
+}
+
+model Star {
+  id         String   @id @default(uuid())
+  stars      Int
+  totalStars Int
+  forks      Int
+  totalForks Int
+  login      String
+  date       DateTime @default(now()) @db.Date
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([login, date])
+}
+
+model Media {
+  id             String       @id @default(uuid())
+  name           String
+  path           String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Subscription {
+  id                String            @id @default(cuid())
+  organizationId    String            @unique
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  subscriptionTier  SubscriptionTier
+  identifier        String?
+  cancelAt          DateTime?
+  period            Period
+  totalChannels     Int
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  @@index([organizationId])
+  @@index([deletedAt])
+}
+
+model Integration {
+  id              String          @id @default(cuid())
+  internalId      String
+  organizationId  String
+  name            String
+  organization    Organization    @relation(fields: [organizationId], references: [id])
+  picture         String?
+  providerIdentifier String
+  type            String
+  token           String
+  disabled        Boolean         @default(false)
+  tokenExpiration DateTime?
+  refreshToken    String?
+  posts           Post[]
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime?      @updatedAt
+
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@unique([organizationId, internalId])
+}
+
+model Comments {
+  id                String     @id @default(uuid())
+  content           String
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  userId            String
+  user              User       @relation(fields: [userId], references: [id])
+  date              DateTime
+  parentCommentId   String?
+  parentComment     Comments?  @relation("parentCommentId", fields: [parentCommentId], references: [id])
+  childrenComment   Comments[] @relation("parentCommentId")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  deletedAt         DateTime?
+
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([date])
+  @@index([userId])
+  @@index([deletedAt])
+}
+
+model Post {
+  id                String       @id @default(cuid())
+  state             State        @default(QUEUE)
+  publishDate       DateTime
+  organizationId    String
+  integrationId     String
+  content           String
+  group             String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  integration       Integration  @relation(fields: [integrationId], references: [id])
+  title             String?
+  description       String?
+  parentPostId      String?
+  releaseId         String?
+  releaseURL        String?
+  settings          String?
+  parentPost        Post?       @relation("parentPostId", fields: [parentPostId], references: [id])
+  childrenPost      Post[]      @relation("parentPostId")
+  image             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
+
+  @@index([group])
+  @@index([deletedAt])
+  @@index([publishDate])
+  @@index([state])
+  @@index([organizationId])
+  @@index([parentPostId])
+}
+
+model Notifications {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  content           String
+  link              String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([deletedAt])
+}
+
+enum State {
+  QUEUE
+  PUBLISHED
+  ERROR
+  DRAFT
+}
+
+enum SubscriptionTier {
+  STANDARD
+  PRO
+}
+
+enum Period {
+  MONTHLY
+  YEARLY
+}
+
+enum Provider {
+  LOCAL
+  GITHUB
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  USER
+}
